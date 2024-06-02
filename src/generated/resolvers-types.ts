@@ -22,6 +22,8 @@ export type Mutation = {
   createLink: StatusDataErrorString;
   deleteLink: StatusDataErrorString;
   deleteUser: StatusDataErrorString;
+  logout: StatusDataErrorString;
+  refreshAuthToken: StatusDataErrorString;
   register: StatusDataErrorString;
   requestPasswordReset: StatusDataErrorString;
   resetPassword: StatusDataErrorString;
@@ -278,6 +280,8 @@ export type MutationResolvers<ContextType = CustomApolloContext, ParentType exte
   createLink?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType, RequireFields<MutationCreateLinkArgs, 'details'>>;
   deleteLink?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType, RequireFields<MutationDeleteLinkArgs, 'linkId'>>;
   deleteUser?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType>;
+  logout?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType>;
+  refreshAuthToken?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType>;
   register?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType, RequireFields<MutationRegisterArgs, 'details'>>;
   requestPasswordReset?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType, RequireFields<MutationRequestPasswordResetArgs, 'details'>>;
   resetPassword?: Resolver<ResolversTypes['StatusDataErrorString'], ParentType, ContextType, RequireFields<MutationResetPasswordArgs, 'details'>>;

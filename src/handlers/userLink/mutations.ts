@@ -2,7 +2,7 @@ import gql from 'graphql-tag';
 
 import { MutationResolvers, ReturnStatus } from '../../generated/resolvers-types.js';
 import { internalErrorMap } from '../../constants/errorMaps/internalErrorMap.js';
-import { JOIcreateUserLinkSchema, JOIUpdateUserLinkSchema } from '../../joi/userLinkJOISchemas.js';
+import { JOIcreateUserLinkSchema, JOIUpdateUserLinkSchema } from '../../joi_schemas/userLinkJOISchemas.js';
 import { internalSuccessMap } from '../../constants/errorMaps/internalSuccessMap.js';
 
 const mutations: MutationResolvers = {
@@ -72,9 +72,26 @@ const mutations: MutationResolvers = {
     }
 
     // Find link to delete
-    const deleteLink = await prisma.userLink.update({
+    const findLink = await prisma.userLink.findFirst({
       where: {
         id: linkId,
+        isDeleted: false,
+      },
+    });
+
+    // If link not found return link not deleted error
+    if (!findLink) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['userLink/alreadyDeleted'],
+      };
+    }
+
+    // Add delete flag
+    const delLink = await prisma.userLink.update({
+      where: {
+        id: linkId,
+        isDeleted: false,
       },
 
       data: {
@@ -83,10 +100,10 @@ const mutations: MutationResolvers = {
     });
 
     // If link not deleted return link not deleted error
-    if (!deleteLink) {
+    if (!delLink) {
       return {
         status: ReturnStatus.Error,
-        error: internalErrorMap['userLink/failDeleted'],
+        error: internalErrorMap['userLink/alreadyDeleted'],
       };
     }
 
@@ -110,6 +127,21 @@ const mutations: MutationResolvers = {
       }
 
       // Find link to update
+      const findLink = await prisma.userLink.findFirst({
+        where: {
+          id: linkId,
+          isDeleted: false,
+        },
+      });
+
+      // If link not found return failed to update error
+      if (!findLink) {
+        return {
+          status: ReturnStatus.Error,
+          error: internalErrorMap['userLink/failUpdate'],
+        };
+      }
+
       const updateLink = await prisma.userLink.update({
         where: {
           id: linkId,
@@ -127,7 +159,7 @@ const mutations: MutationResolvers = {
         },
       });
 
-      // If link not found return failed to update error
+      // If link failed to update
       if (!updateLink) {
         return {
           status: ReturnStatus.Error,

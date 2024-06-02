@@ -1,7 +1,7 @@
 type ErrorMapKey =
   | 'auth/unauthorized'
   | 'auth/unauthenticated'
-  | 'user/notAuthorize'
+  | 'user/inValidUserLoginCredentials'
   | 'user/emailAlreadyExists'
   | 'user/usernameAlreadyExists'
   | 'user/failRegister'
@@ -10,8 +10,9 @@ type ErrorMapKey =
   | 'user/failPasswordReset'
   | 'userLink/failCreate'
   | 'userLink/failUpdate'
-  | 'userLink/failDeleted'
+  | 'userLink/alreadyDeleted'
   | 'userLink/failFetched'
+  | 'user/invalidToken'
   | 'server/failComplete'
   | 'auth/samePassword';
 
@@ -19,7 +20,7 @@ const internalErrorMap: Record<ErrorMapKey, string> = {
   'auth/unauthorized': 'You are not authorized to perform this action',
   'auth/unauthenticated': 'You are not authenticated',
   'auth/samePassword': 'You cannot set your new password same as old password',
-  'user/notAuthorize': 'Unable to authorize. Please check username/password combination',
+  'user/inValidUserLoginCredentials': 'Unable to login. Please check username/password combination',
   'user/emailAlreadyExists': 'Email already registered',
   'user/usernameAlreadyExists': 'Username is taken',
   'user/failRegister': 'Registration failed',
@@ -28,8 +29,9 @@ const internalErrorMap: Record<ErrorMapKey, string> = {
   'user/failPasswordReset': 'Expired or invalid request',
   'userLink/failCreate': 'Failed to create new link',
   'userLink/failUpdate': 'Failed to update link',
-  'userLink/failDeleted': 'Unable to delete link',
+  'userLink/alreadyDeleted': 'Link already deleted',
   'userLink/failFetched': 'Unable to fetch links',
+  'user/invalidToken': 'Expired or Invalid Token',
   'server/failComplete': 'Something went wrong, please try again later',
 };
 

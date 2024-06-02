@@ -4,6 +4,7 @@ interface MyJwtPayload {
   id?: string;
   email?: string;
   passwordResetSecret?: string;
+  JWTAuthSecret?: string;
 }
 
 const getDecodedJWT = (token: string, secret: string): jwt.JwtPayload & MyJwtPayload => {

@@ -2,14 +2,13 @@ import assert from 'node:assert';
 import { testApolloServer, testPrismaClient, testRedisClient } from '../../../constants/testServerClients';
 import { ReturnStatus, StatusDataErrorStringResolvers } from '../../../generated/resolvers-types';
 import { internalErrorMap } from '../../../constants/errorMaps/internalErrorMap';
-import { internalSuccessMap } from '../../../constants/errorMaps/internalSuccessMap';
 import { TESTING_DUMMY_PASSWORD } from '../../../constants/global';
 
-const getRegisterMutationParams = (isForNewUser: boolean) => {
-  const registerMutationParams = [
+const getLoginQueryParams = (isForNewUser: boolean) => {
+  const loginQueryParams = [
     {
-      query: `mutation Register($details: UserRegisterInput!) {
-        register(details: $details) {
+      query: `query Login($details: UserLoginInput!) {
+        login(details: $details) {
           data
           error
           status
@@ -19,7 +18,6 @@ const getRegisterMutationParams = (isForNewUser: boolean) => {
         details: {
           email: isForNewUser ? 'newuser@gmail.com' : 'existing@gmail.com',
           password: TESTING_DUMMY_PASSWORD,
-          username: isForNewUser ? 'newuser-delete' : 'existinguser',
         },
       },
     },
@@ -32,16 +30,10 @@ const getRegisterMutationParams = (isForNewUser: boolean) => {
     },
   ];
 
-  return registerMutationParams;
+  return loginQueryParams;
 };
 
 afterAll(async () => {
-  await testPrismaClient.user.deleteMany({
-    // Since delete needs a unique field
-    where: {
-      email: 'newuser@gmail.com',
-    },
-  });
   testRedisClient.disconnect();
   console.log('redis stopped');
   await testPrismaClient.$disconnect();
@@ -50,12 +42,12 @@ afterAll(async () => {
   console.log('server stopped');
 });
 
-it('register new user', async () => {
-  const registerMutationParams = getRegisterMutationParams(true);
+it('login new user', async () => {
+  const loginQueryParams = getLoginQueryParams(true);
 
   const response = await testApolloServer.executeOperation<{
-    register: StatusDataErrorStringResolvers;
-  }>(registerMutationParams[0], registerMutationParams[1]);
+    login: StatusDataErrorStringResolvers;
+  }>(loginQueryParams[0], loginQueryParams[1]);
 
   assert(response.body.kind === 'single');
 
@@ -63,16 +55,16 @@ it('register new user', async () => {
 
   console.log(response.body.singleResult.data);
 
-  expect(response.body.singleResult.data?.register.status).toBe(ReturnStatus.Success);
-  expect(response.body.singleResult.data?.register.data).toBe(internalSuccessMap['user/successRegister']);
+  expect(response.body.singleResult.data?.login.status).toBe(ReturnStatus.Error);
+  expect(response.body.singleResult.data?.login.error).toBe(internalErrorMap['user/inValidUserLoginCredentials']);
 });
 
-it('register existing user', async () => {
-  const registerMutationParams = getRegisterMutationParams(false);
+it('login existing user', async () => {
+  const loginQueryParams = getLoginQueryParams(false);
 
   const response = await testApolloServer.executeOperation<{
-    register: StatusDataErrorStringResolvers;
-  }>(registerMutationParams[0], registerMutationParams[1]);
+    login: StatusDataErrorStringResolvers;
+  }>(loginQueryParams[0], loginQueryParams[1]);
 
   assert(response.body.kind === 'single');
 
@@ -80,6 +72,6 @@ it('register existing user', async () => {
 
   console.log(response.body.singleResult.data);
 
-  expect(response.body.singleResult.data?.register.status).toBe(ReturnStatus.Error);
-  expect(response.body.singleResult.data?.register.error).toBe(internalErrorMap['user/emailAlreadyExists']);
+  expect(response.body.singleResult.data?.login.status).toBe(ReturnStatus.Success);
+  expect(response.body.singleResult.data?.login.data).not.toBeNull();
 });

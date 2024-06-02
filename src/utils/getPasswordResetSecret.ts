@@ -1,6 +1,7 @@
 import { User } from '@prisma/client';
-import { dateToEpochTimestamp } from './dateToEpochTimestamp.js';
 import { compare, genSalt, hash } from 'bcrypt';
+
+import { dateToEpochTimestamp } from '../utils/dateToEpochTimestamp.js';
 
 const getPasswordResetSecret = async (user: User): Promise<string> => {
   const salt = await genSalt(12);

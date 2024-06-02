@@ -1,17 +1,22 @@
 import gql from 'graphql-tag';
-
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import { SendTemplatedEmailRequest } from '@aws-sdk/client-ses';
 
 import { MutationResolvers, ReturnStatus } from '../../generated/resolvers-types.js';
 import { internalErrorMap } from '../../constants/errorMaps/internalErrorMap.js';
-import { JOIcreateUserSchema, JOIrequestPasswordResetSchema } from '../../joi/userJOISchemas.js';
+import { JOIcreateUserSchema, JOIrequestPasswordResetSchema } from '../../joi_schemas/userJOISchemas.js';
 import { checkPasswordResetSecret, getPasswordResetSecret } from '../../utils/getPasswordResetSecret.js';
 import { getDecodedJWT } from '../../utils/getDecodedJWT.js';
-import { IS_TESTING, JWT_SECRET_KEY, SES_SENDERS_EMAIL_ADDRESS } from '../../constants/global.js';
+import {
+  JWT_ACCESS_SECRET_KEY,
+  JWT_REFRESH_COOKIE_EXPIRES_IN,
+  JWT_REFRESH_SECRET_KEY,
+  SES_SENDERS_EMAIL_ADDRESS,
+} from '../../constants/global.js';
 import { SES_CLIENT } from '../../constants/sesClient.js';
-import { SendTemplatedEmailRequest } from '@aws-sdk/client-ses';
 import { internalSuccessMap } from '../../constants/errorMaps/internalSuccessMap.js';
+import { isJWTTokenBlackListed, setJWTTokenBlackListed } from '../../utils/isJWTTokenBlackListed.js';
+import { signJWTToken } from '../../utils/signJWTToken.js';
 
 const mutations: MutationResolvers = {
   register: async (_, { details }, { prisma }) => {
@@ -61,15 +66,6 @@ const mutations: MutationResolvers = {
           status: ReturnStatus.Error,
           error: internalErrorMap['user/failRegister'],
         };
-      }
-
-      if (IS_TESTING && details.username?.endsWith('-delete')) {
-        await prisma.user.deleteMany({
-          // Since delete needs a unique field
-          where: {
-            email: details.email,
-          },
-        });
       }
 
       // Return Success message if user registered
@@ -164,9 +160,7 @@ const mutations: MutationResolvers = {
       // If user found generate token
       const passwordResetSecret = await getPasswordResetSecret(foundUser);
 
-      const resetToken = jwt.sign({ id: foundUser.id, email: foundUser.email, passwordResetSecret }, JWT_SECRET_KEY, {
-        expiresIn: '1h',
-      });
+      const resetToken = signJWTToken('email', foundUser.id, foundUser.email, passwordResetSecret);
 
       // // Send email to user
       const UserResetEmailParams: SendTemplatedEmailRequest = {
@@ -210,7 +204,7 @@ const mutations: MutationResolvers = {
 
   resetPassword: async (_, { details }, { prisma }) => {
     // Verify jwt token with secret
-    const decodedJWT = getDecodedJWT(details.token, JWT_SECRET_KEY) || null;
+    const decodedJWT = getDecodedJWT(details.token, JWT_ACCESS_SECRET_KEY) || null;
 
     // If not verified return error
     if (!decodedJWT) {
@@ -279,6 +273,117 @@ const mutations: MutationResolvers = {
       data: internalSuccessMap['user/successPasswordReset'],
     };
   },
+
+  refreshAuthToken: async (_, __, { req, res }) => {
+    const refreshToken: string = req?.cookies.refreshToken;
+    if (!refreshToken) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['auth/unauthenticated'],
+      };
+    }
+
+    // Verify refresh token
+    const decodedJWT = getDecodedJWT(refreshToken, JWT_REFRESH_SECRET_KEY) || null;
+
+    // If not verified return error
+    if (!decodedJWT) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['user/invalidToken'],
+      };
+    }
+
+    // Check if token is blacklisted
+    const isBlackListed = await isJWTTokenBlackListed(decodedJWT.JWTAuthSecret || '');
+
+    // If token is blacklisted return error
+    if (isBlackListed) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['user/invalidToken'],
+      };
+    }
+
+    // If token is not blacklisted return new access and refresh token
+    const newAccessToken = signJWTToken('access', decodedJWT.id);
+    const newRefreshToken = signJWTToken('refresh', decodedJWT.id);
+
+    if (!newAccessToken || !newRefreshToken) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['server/failComplete'],
+      };
+    }
+
+    // Blacklist the previous used refresh token
+    const setTokenBlackListed = await setJWTTokenBlackListed(decodedJWT.JWTAuthSecret || '');
+    if (!setTokenBlackListed) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['server/failComplete'],
+      };
+    }
+
+    // Return refresh token in a cookie
+    res?.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: true, //process.env.NODE_ENV === 'production', // set true at time of production
+      maxAge: JWT_REFRESH_COOKIE_EXPIRES_IN,
+      sameSite: 'none',
+    });
+
+    return {
+      status: ReturnStatus.Success,
+      data: newAccessToken,
+    };
+  },
+
+  logout: async (_, __, { req, res }) => {
+    const refreshToken: string = req?.cookies.refreshToken;
+    if (!refreshToken) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['auth/unauthenticated'],
+      };
+    }
+
+    const decodedJWT = getDecodedJWT(refreshToken, JWT_REFRESH_SECRET_KEY) || null;
+
+    // If not verified return error
+    if (!decodedJWT) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['user/invalidToken'],
+      };
+    }
+
+    // Check if token is blacklisted
+    const isBlackListed = await isJWTTokenBlackListed(decodedJWT.JWTAuthSecret || '');
+
+    // If token is blacklisted return error ( User logged out )
+    if (isBlackListed) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['user/invalidToken'],
+      };
+    }
+
+    // If token is not blacklisted, blacklist the token and clear cookie
+    const setTokenBlackListed = await setJWTTokenBlackListed(refreshToken);
+    if (!setTokenBlackListed) {
+      return {
+        status: ReturnStatus.Error,
+        error: internalErrorMap['server/failComplete'],
+      };
+    }
+
+    res?.clearCookie('refreshToken');
+    return {
+      status: ReturnStatus.Success,
+      data: internalSuccessMap['user/successLogout'],
+    };
+  },
 };
 
 const mutationTypeDefs = gql`
@@ -290,6 +395,10 @@ const mutationTypeDefs = gql`
     requestPasswordReset(details: UserRequestPasswordResetInput!): StatusDataErrorString!
 
     resetPassword(details: UserResetPasswordInput!): StatusDataErrorString!
+
+    refreshAuthToken: StatusDataErrorString!
+
+    logout: StatusDataErrorString!
   }
 `;
 

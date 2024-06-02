@@ -1,5 +1,6 @@
-import { UserRegisterInput, UserRequestPasswordResetInput } from 'generated/resolvers-types';
 import Joi from 'joi';
+
+import { UserRegisterInput, UserRequestPasswordResetInput } from '../generated/resolvers-types.js';
 
 const JOIcreateUserSchema = Joi.object<UserRegisterInput>({
   username: Joi.string().min(3).max(20).messages({

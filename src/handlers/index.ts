@@ -2,15 +2,17 @@ import gql from 'graphql-tag';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 
 import { Resolvers } from '../generated/resolvers-types.js';
-import { types as commonTypeDefs } from './gql-types.js';
-
-import { queries as userQueries, mutations as userMutations, typeDefs as userTypeDefs } from './user/index.js';
-
+import { types as commonTypeDefs } from '../handlers/gql-types.js';
+import {
+  queries as userQueries,
+  mutations as userMutations,
+  typeDefs as userTypeDefs,
+} from '../handlers/user/index.js';
 import {
   queries as userLinkQueries,
   mutations as userLinkMutations,
   typeDefs as useLirnkTypeDefs,
-} from './userLink/index.js';
+} from '../handlers/userLink/index.js';
 
 const resolvers: Resolvers = {
   Query: {
